@@ -80,6 +80,16 @@ Possible values are:
 
 This is useful when monitoring services which could stay stopped on CARP Backup Member.
 
+## System version cronjob 
+
+Setup the system version cronjob with: 
+
+```bash 
+/usr/local/bin/php /root/scripts/pfsense_zbx.php sysversion_cron
+```
+
+This should prevent errors that the system version retrieval command is taking too long on slower systems. 
+
 ## Setup Speedtest
 
 For running speedtests on WAN interfaces on the latest pfSense CE (2.7.2), it's recommended to check the available speedtest package first using:
@@ -89,11 +99,7 @@ pkg search speedtest
 ```
 
 This will provide you with the latest package information. To install the speedtest package, use the following commands in **Diagnostics/Command Prompt**:
-Then, setup the system version cronjob with: 
 
-```bash 
-/usr/local/bin/php /root/scripts/pfsense_zbx.php sysversion_cron
-```
 
 ```bash
 pkg update && pkg install -y py311-speedtest-cli
