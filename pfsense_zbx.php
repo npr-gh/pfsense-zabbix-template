@@ -13,6 +13,7 @@ define ('SCRIPT_VERSION','0.24.7');
 define('SPEEDTEST_INTERVAL', 8); //Speedtest Interval (in hours)
 define('CRON_TIME_LIMIT', 300); // Time limit in seconds of speedtest and sysinfo 
 define('DEFAULT_TIME_LIMIT', 30); // Time limit in seconds otherwise
+define('SYSCHECK_STALE_LIMIT', 86400); // sysversion.json older than this means the cronjob is not running
 
 require_once('globals.inc');
 require_once('functions.inc');
@@ -40,6 +41,17 @@ if (!function_exists('str_contains')){
 	function str_contains($haystack,$needle){
 
 		return strstr($haystack,$needle);
+	}
+
+}
+
+//pfSense 2.7-2.8 Compatibility
+if (!function_exists('get_drive_list')){
+
+	function get_drive_list() {
+
+		get_smart_drive_list();
+
 	}
 
 }
@@ -553,7 +565,8 @@ function pfz_gw_value($gw, $valuekey) {
           $value = $gws[$gw][$valuekey];
           if ($valuekey=="status") { 
                //Issue #70: Gateway Forced Down
-               if ($gws[$gw]["substatus"]<>"none") 
+               //Issue #182: Gateway not marked as Down
+               if (($gws[$gw]["status"]=="force_down") && ($gws[$gw]["substatus"]<>"none")) 
                     $value = $gws[$gw]["substatus"];
                
                $value = pfz_valuemap("gateway.status", $value);
@@ -1119,6 +1132,13 @@ function pfz_syscheck_cron (){
 //System Information
 function pfz_get_system_value($section){
 	$filename = "/tmp/sysversion.json";	
+	// A stale file means the cronjob is not running. Drop it, so the code
+	// below reinstalls the cronjob just like it does on a new install.
+	if (file_exists($filename)) {
+		if ( (time()-filemtime($filename) > SYSCHECK_STALE_LIMIT) ) {
+			@unlink($filename);
+		}
+	}
 	if(file_exists($filename)) {
 		$sysVersion = json_decode(file_get_contents($filename), true);
 	} else {
@@ -1156,11 +1176,12 @@ function pfz_get_system_value($section){
 // Taken from /usr/local/www/widgets/widgets/smart_status.widget.php
 function pfz_get_smart_status(){
 
-	$devs = get_smart_drive_list();
+	$devs = get_drive_list();
 	$status = 0;
 	foreach ($devs as $dev)  { ## for each found drive do                
                 $smartdrive_is_displayed = true;
-                $dev_ident = exec("diskinfo -v /dev/$dev | grep ident   | awk '{print $1}'"); ## get identifier from drive
+                // This does nothing, only beaks the script when you have an NMVE disk
+		//$dev_ident = exec("diskinfo -v /dev/$dev | grep ident   | awk '{print $1}'"); ## get identifier from drive
                 $dev_state = trim(exec("smartctl -H /dev/$dev | awk -F: '/^SMART overall-health self-assessment test result/ {print $2;exit}
 /^SMART Health Status/ {print $2;exit}'")); ## get SMART state from drive
                 switch ($dev_state) {
@@ -1172,12 +1193,12 @@ function pfz_get_smart_status(){
                         case "":
                                 //Unknown
                                 $status=2;
-                                return $status;
+                                //return $status;
                                 break;
                         default:
                         		//Error
                                 $status=1;
-                                return $status;
+                               //return $status;
                                 break;
                 }
 	}
